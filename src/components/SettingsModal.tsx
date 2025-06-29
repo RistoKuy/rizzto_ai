@@ -87,7 +87,7 @@ export default function SettingsModal() {
     >
       <div className="fixed inset-0 bg-black/50 backdrop-blur-sm" />
       <div 
-        className={`fixed top-0 bottom-0 right-0 w-full max-w-md bg-white dark:bg-gray-800/95 shadow-xl overflow-y-auto ${isVisible ? 'slide-in' : 'translate-x-full'}`}
+        className={`fixed top-0 bottom-0 right-0 w-full max-w-md bg-white dark:bg-gray-800/95 shadow-xl ${isVisible ? 'slide-in' : 'translate-x-full'} flex flex-col`}
         onClick={e => e.stopPropagation()} // Prevent closing when clicking the panel
       >
         <div className="bg-gradient-to-r from-blue-500 to-purple-600 p-4 flex justify-between items-center sticky top-0 z-10">
@@ -103,7 +103,9 @@ export default function SettingsModal() {
           </button>
         </div>
         
-        <form onSubmit={handleSave} className="p-6 space-y-6 pb-28">
+        {/* Scrollable form content */}
+        <div className="flex-1 overflow-y-auto">
+          <form id="settings-form" onSubmit={handleSave} className="p-6 space-y-6">
           {/* Essential Settings Section */}
           <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 border-b border-gray-200 dark:border-gray-700 pb-2">
             Required Settings
@@ -330,37 +332,39 @@ export default function SettingsModal() {
               {validationError}
             </div>
           )}
-          
-          {/* Action Buttons - Fixed to bottom */}
-          <div className="fixed bottom-0 left-0 right-0 bg-white/80 dark:bg-gray-800/80 border-t border-gray-200 dark:border-gray-700 p-4 flex justify-between items-center shadow-md backdrop-blur-sm">
-            <div>
-              <button
-                type="button"
-                onClick={resetSettings}
-                className="min-w-[80px] px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-              >
-                Reset
-              </button>
-            </div>
-            
-            <div className="flex gap-3">
-              <button
-                type="button"
-                onClick={handleClose}
-                className="min-w-[80px] px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-              >
-                Cancel
-              </button>
-              
-              <button
-                type="submit"
-                className="min-w-[80px] px-4 py-2 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white rounded-md shadow-sm font-medium transition-colors"
-              >
-                Save
-              </button>
-            </div>
+          </form>
+        </div>
+        
+        {/* Action Buttons - Fixed to bottom of panel */}
+        <div className="bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 p-4 flex justify-between items-center shadow-md">
+          <div>
+            <button
+              type="button"
+              onClick={resetSettings}
+              className="min-w-[80px] px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+            >
+              Reset
+            </button>
           </div>
-        </form>
+          
+          <div className="flex gap-3">
+            <button
+              type="button"
+              onClick={handleClose}
+              className="min-w-[80px] px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+            >
+              Cancel
+            </button>
+            
+            <button
+              type="submit"
+              form="settings-form"
+              className="min-w-[80px] px-4 py-2 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white rounded-md shadow-sm font-medium transition-colors"
+            >
+              Save
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );
