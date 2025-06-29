@@ -43,7 +43,31 @@ export async function POST(request: NextRequest) {
     }
     
     // Extract settings directly from provided settings
-    const { proxyUrl, model, systemPrompt, temperature, maxTokens } = settings;
+    const { proxyUrl, model, systemPrompt, temperature, maxTokens, contextWindow, contextMode } = settings;
+
+    // Handle context window limiting based on mode
+    let contextMessages = history;
+    if (contextMode === 'tokens' && contextWindow) {
+      // For token-based limiting, we'll use a rough estimate: ~4 characters per token
+      // This is simplified - in production, you'd want to use a proper tokenizer
+      const estimatedTokensPerChar = 0.25;
+      let totalTokens = 0;
+      const limitedMessages = [];
+      
+      // Count tokens from most recent messages backwards
+      for (let i = history.length - 1; i >= 0; i--) {
+        const messageTokens = Math.ceil(history[i].content.length * estimatedTokensPerChar);
+        if (totalTokens + messageTokens > contextWindow) {
+          break;
+        }
+        totalTokens += messageTokens;
+        limitedMessages.unshift(history[i]);
+      }
+      contextMessages = limitedMessages;
+    } else if (contextMode === 'messages' && contextWindow) {
+      // For message-based limiting, just take the last N messages
+      contextMessages = history.slice(-contextWindow);
+    }
 
     // Make request to OpenRouter API (or custom endpoint)
     const response = await fetch(proxyUrl, {
@@ -63,8 +87,8 @@ export async function POST(request: NextRequest) {
             content: systemPrompt
           }] : []),
           
-          // Previous conversation history based on contextWindow
-          ...history,
+          // Previous conversation history (limited by context window)
+          ...contextMessages,
           
           // Current user message
           {

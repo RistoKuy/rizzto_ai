@@ -9,7 +9,8 @@ export interface ChatSettings {
   
   // Advanced settings
   systemPrompt: string;    // Instructions for the AI assistant
-  contextWindow?: number;  // Number of previous messages to include in context
+  contextWindow?: number;  // Number of previous messages/tokens to include in context
+  contextMode?: 'messages' | 'tokens'; // Whether to count by messages or tokens
   
   // Generation settings
   temperature?: number;    // Controls creativity vs. determinism (0.0-2.0)

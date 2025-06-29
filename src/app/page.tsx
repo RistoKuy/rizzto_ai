@@ -44,8 +44,18 @@ export default function Home() {
     setIsLoading(true);
 
     try {
-      // Get conversation history based on contextWindow setting
-      const conversationHistory = messages.slice(-(settings.contextWindow || 10));
+      // Get conversation history based on contextWindow setting and mode
+      let conversationHistory: Message[];
+      
+      if (settings.contextMode === 'tokens') {
+        // For token-based context, we'll send all recent messages and let the API handle token limiting
+        // This is a simplified approach - in a production app, you'd want to estimate tokens more precisely
+        const maxMessages = Math.min(messages.length, 100); // Reasonable upper limit
+        conversationHistory = messages.slice(-maxMessages);
+      } else {
+        // For message-based context, limit by number of messages
+        conversationHistory = messages.slice(-(settings.contextWindow || 10));
+      }
       
       // Map our internal message format to the API format
       const apiMessages = conversationHistory.map(msg => ({

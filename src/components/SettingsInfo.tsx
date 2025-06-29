@@ -53,7 +53,10 @@ export default function SettingsInfo() {
       </span>
       
       {/* Advanced Settings */}
-      <span>Ctx: {settings.contextWindow || 10}</span>
+      <span>
+        Ctx: {settings.contextWindow || 10}
+        {settings.contextMode === 'tokens' ? 't' : 'm'}
+      </span>
       
       {/* Settings button */}
       <button 

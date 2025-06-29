@@ -25,6 +25,7 @@ export const SettingsContext = createContext<SettingsContextType>({
     // Advanced settings
     systemPrompt: '',
     contextWindow: 10,
+    contextMode: 'messages',
     
     // Generation settings
     temperature: undefined,
@@ -46,6 +47,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     // Advanced settings
     systemPrompt: '',
     contextWindow: 10,
+    contextMode: 'messages',
     
     // Generation settings
     temperature: undefined,
@@ -94,6 +96,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       // Advanced settings
       systemPrompt: '',
       contextWindow: 10, // Reset to default of 10 messages
+      contextMode: 'messages' as const,
       
       // Generation settings
       temperature: undefined,

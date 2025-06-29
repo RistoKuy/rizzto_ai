@@ -192,29 +192,86 @@ export default function SettingsModal() {
 
           {/* Context Window */}
           <div>
-            <div className="flex items-center justify-between mb-1">
-              <label htmlFor="contextWindow" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                Context Window: {formValues.contextWindow ?? 10} messages
-                <span className="text-xs text-gray-500 dark:text-gray-400 ml-2"> 
-                  (How many previous messages to remember)
-                </span>
+            <div className="flex items-center justify-between mb-3">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                Context Window
               </label>
               <button 
                 type="button"
-                onClick={() => setFormValues({...formValues, contextWindow: 10})} // reset to default
+                onClick={() => setFormValues({
+                  ...formValues, 
+                  contextWindow: formValues.contextMode === 'messages' ? 10 : 4000,
+                  contextMode: formValues.contextMode || 'messages'
+                })}
                 className="text-xs text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
               >
                 Reset
               </button>
             </div>
+            
+            {/* Toggle between Messages and Tokens */}
+            <div className="flex items-center space-x-4 mb-3">
+              <label className="flex items-center">
+                <input
+                  type="radio"
+                  name="contextMode"
+                  value="messages"
+                  checked={formValues.contextMode === 'messages' || !formValues.contextMode}
+                  onChange={(e) => {
+                    setFormValues({
+                      ...formValues,
+                      contextMode: e.target.value as 'messages',
+                      contextWindow: 10 // Reset to appropriate default
+                    });
+                  }}
+                  className="mr-2"
+                />
+                <span className="text-sm text-gray-700 dark:text-gray-300">By Messages</span>
+              </label>
+              <label className="flex items-center">
+                <input
+                  type="radio"
+                  name="contextMode"
+                  value="tokens"
+                  checked={formValues.contextMode === 'tokens'}
+                  onChange={(e) => {
+                    setFormValues({
+                      ...formValues,
+                      contextMode: e.target.value as 'tokens',
+                      contextWindow: 4000 // Reset to appropriate default
+                    });
+                  }}
+                  className="mr-2"
+                />
+                <span className="text-sm text-gray-700 dark:text-gray-300">By Tokens</span>
+              </label>
+            </div>
+            
+            {/* Context Window Value Display */}
+            <div className="mb-2">
+              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                {formValues.contextMode === 'tokens' ? 
+                  `${formValues.contextWindow ?? 4000} tokens` : 
+                  `${formValues.contextWindow ?? 10} messages`
+                }
+              </span>
+              <span className="text-xs text-gray-500 dark:text-gray-400 ml-2">
+                {formValues.contextMode === 'tokens' ? 
+                  '(How many tokens of previous conversation to include)' :
+                  '(How many previous messages to remember)'
+                }
+              </span>
+            </div>
+            
+            {/* Slider */}
             <input
               type="range"
               id="contextWindow"
               name="contextWindow"
-              min="1"
-              max="50"
-              step="1"
-              value={formValues.contextWindow ?? 10} // Default of 10 messages
+              min={formValues.contextMode === 'tokens' ? 100 : 1}
+              max={formValues.contextMode === 'tokens' ? 128000 : 50}
+              step={formValues.contextMode === 'tokens' ? 100 : 1}
+              value={formValues.contextWindow ?? (formValues.contextMode === 'tokens' ? 4000 : 10)}
               onChange={(e) => {
                 setFormValues({
                   ...formValues, 
@@ -223,13 +280,29 @@ export default function SettingsModal() {
               }}
               className="w-full"
             />
-            <div className="flex justify-between text-xs text-gray-500">
-              <span>1</span>
-              <span>25</span>
-              <span>50</span>
+            
+            {/* Range Labels */}
+            <div className="flex justify-between text-xs text-gray-500 mt-1">
+              {formValues.contextMode === 'tokens' ? (
+                <>
+                  <span>100</span>
+                  <span>64K</span>
+                  <span>128K</span>
+                </>
+              ) : (
+                <>
+                  <span>1</span>
+                  <span>25</span>
+                  <span>50</span>
+                </>
+              )}
             </div>
-            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-              Higher values give the AI more context but use more tokens. Lower values help maintain focus on recent messages.
+            
+            <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+              {formValues.contextMode === 'tokens' ? 
+                'Higher token counts provide more context but increase API costs. Most models support up to 128K tokens.' :
+                'Higher message counts give the AI more context but use more tokens. Lower values help maintain focus on recent messages.'
+              }
             </p>
           </div>
           
