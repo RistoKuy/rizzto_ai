@@ -2,6 +2,9 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { marked } from 'marked';
+import { useSettings } from '@/hooks/useSettings';
+import SettingsModal from '@/components/SettingsModal';
+import SettingsInfo from '@/components/SettingsInfo';
 
 interface Message {
   role: 'user' | 'bot';
@@ -9,6 +12,7 @@ interface Message {
 }
 
 export default function Home() {
+  const { settings, toggleSettings } = useSettings();
   const [messages, setMessages] = useState<Message[]>([
     {
       role: 'bot',
@@ -40,12 +44,26 @@ export default function Home() {
     setIsLoading(true);
 
     try {
+      // Get conversation history based on contextWindow setting
+      const conversationHistory = messages.slice(-(settings.contextWindow || 10));
+      
+      // Map our internal message format to the API format
+      const apiMessages = conversationHistory.map(msg => ({
+        role: msg.role === 'user' ? 'user' : 'assistant',
+        content: msg.content
+      }));
+      
+      // Make the API request with the conversation history
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ message: userInput }),
+        body: JSON.stringify({ 
+          message: userInput,
+          settings: settings,
+          history: apiMessages
+        }),
       });
 
       if (!response.ok) {
@@ -123,8 +141,19 @@ export default function Home() {
   return (
     <main className="w-full max-w-4xl h-[90vh] bg-white/95 dark:bg-gray-800/95 backdrop-blur-xl rounded-3xl shadow-2xl border border-white/20 dark:border-gray-600/20 flex flex-col overflow-hidden transition-all duration-300 hover:shadow-3xl">
       {/* Header */}
-      <header className="bg-gradient-to-r from-blue-500 to-purple-600 text-white p-6 text-center relative shadow-lg">
+      <header className="bg-gradient-to-r from-blue-500 to-purple-600 text-white p-6 text-center relative shadow-lg flex justify-between items-center">
+        <div className="w-8"> {/* Spacer */}</div>
         <h1 className="text-2xl sm:text-3xl font-light tracking-wider">Risto&apos;s Chatbot</h1>
+        <button 
+          onClick={toggleSettings}
+          className="w-8 h-8 flex items-center justify-center bg-white/20 hover:bg-white/30 rounded-full transition-all duration-300"
+          aria-label="Open settings"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+          </svg>
+        </button>
         <div className="absolute inset-0 bg-gradient-to-r from-blue-600/20 to-purple-700/20 pointer-events-none"></div>
       </header>
       
@@ -179,11 +208,15 @@ export default function Home() {
         
         {/* Footer info */}
         <div className="mt-3 text-center">
-          <p className="text-xs text-gray-500 dark:text-gray-400">
+          <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
             Press Enter to send • AI responses may take a moment
           </p>
+          <SettingsInfo />
         </div>
       </footer>
+      
+      {/* Settings Modal */}
+      <SettingsModal />
     </main>
   );
 }

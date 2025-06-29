@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 export async function POST(request: NextRequest) {
   try {
-    const { message } = await request.json();
+    const { message, settings, history = [] } = await request.json();
 
     if (!message) {
       return NextResponse.json(
@@ -11,19 +11,42 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get API key from environment variables
-    const apiKey = process.env.OPENROUTER_API_KEY;
+    // First try to use client-provided API key, then fall back to environment variable
+    const clientApiKey = settings?.apiKey?.trim();
+    const serverApiKey = process.env.OPENROUTER_API_KEY;
+    
+    // Use client API key if provided, otherwise use server API key
+    const apiKey = clientApiKey || serverApiKey;
     
     if (!apiKey) {
-      console.error('OPENROUTER_API_KEY not found in environment variables');
+      console.error('API key not found in client settings or environment variables');
       return NextResponse.json(
-        { error: 'API configuration error' },
+        { error: 'API configuration error: No API key provided' },
         { status: 500 }
       );
     }
+    
+    // Use only provided settings, with no defaults
+    // If essential settings are missing, return helpful error messages
+    if (!settings?.proxyUrl) {
+      return NextResponse.json(
+        { error: 'API endpoint URL is required. Please configure settings.' },
+        { status: 400 }
+      );
+    }
+    
+    if (!settings?.model) {
+      return NextResponse.json(
+        { error: 'AI model is required. Please configure settings.' },
+        { status: 400 }
+      );
+    }
+    
+    // Extract settings directly from provided settings
+    const { proxyUrl, model, systemPrompt, temperature, maxTokens } = settings;
 
-    // Make request to OpenRouter API
-    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+    // Make request to OpenRouter API (or custom endpoint)
+    const response = await fetch(proxyUrl, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${apiKey}`,
@@ -32,28 +55,37 @@ export async function POST(request: NextRequest) {
         'X-Title': 'Risto\'s Chatbot',
       },
       body: JSON.stringify({
-        model: 'openai/gpt-3.5-turbo',
+        model: model,
         messages: [
-          {
+          // System message (if provided)
+          ...(systemPrompt ? [{
             role: 'system',
-            content: 'You are Risto\'s helpful AI assistant. You are knowledgeable, friendly, and always try to provide accurate and helpful responses. Keep your responses conversational but informative.'
-          },
+            content: systemPrompt
+          }] : []),
+          
+          // Previous conversation history based on contextWindow
+          ...history,
+          
+          // Current user message
           {
             role: 'user',
             content: message
           }
         ],
-        temperature: 0.7,
-        max_tokens: 1000,
+        ...(temperature !== undefined ? { temperature } : {}),
+        // Handle "Unlimited" tokens case (0 means no limit)
+        ...(maxTokens !== undefined ? 
+            maxTokens === 0 ? {} : { max_tokens: maxTokens } 
+            : {}),
       }),
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('OpenRouter API error:', response.status, errorText);
+      console.error('API error:', response.status, errorText);
       
       return NextResponse.json(
-        { error: 'Failed to get response from AI service' },
+        { error: `Failed to get response from AI service (${response.status})` },
         { status: 500 }
       );
     }
