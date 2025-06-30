@@ -9,13 +9,14 @@ A modern, fully customizable AI chatbot built with Next.js, TypeScript, and conf
 - **Custom Model Selection:** Enter any model name (e.g., `openai/gpt-4`, `anthropic/claude-3-opus`)
 - **Flexible API Keys:** Use server-side environment variables or client-side custom keys
 - **Smart Context Management:** Choose between message-based (1-50) or token-based (100-128K) context windows
+- **Real-time Streaming:** See AI responses generate in real-time with streaming text
 
 ### 🎨 **Modern UI/UX**
 - **Glassmorphism Design:** Beautiful gradient UI with backdrop blur effects
 - **Sliding Settings Panel:** Smooth animations with organized settings sections
 - **Dark Theme Optimized:** Consistent styling across light and dark modes
 - **Responsive Design:** Fully optimized for desktop and mobile devices
-- **Real-time Indicators:** Loading animations and typing indicators
+- **Real-time Indicators:** Streaming text animation and typing indicators
 
 ### ⚙️ **Advanced Configuration**
 - **Required Settings:** API endpoint URL, model selection, and optional API key
@@ -30,6 +31,7 @@ A modern, fully customizable AI chatbot built with Next.js, TypeScript, and conf
 - **Context Modes:** Switch between message count or token count for context
 - **Memory Optimization:** Intelligent conversation history management
 - **Keyboard Shortcuts:** Enter to send, Shift+Enter for new lines
+- **Streaming Response:** Real-time text generation with visual feedback
 
 ## 🚀 Setup Instructions
 
@@ -124,7 +126,7 @@ src/
 ### Chat Interface
 - **Modern Design:** Clean message bubbles with gradient styling
 - **Auto-scroll:** Automatic scrolling to newest messages
-- **Loading States:** Visual feedback during AI response generation
+- **Streaming Responses:** Real-time text generation with visual typing indicators
 - **Keyboard Shortcuts:** Enter to send, Shift+Enter for line breaks
 - **Responsive Layout:** Optimized for all screen sizes
 

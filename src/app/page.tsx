@@ -9,6 +9,7 @@ import SettingsInfo from '@/components/SettingsInfo';
 interface Message {
   role: 'user' | 'bot';
   content: string;
+  isStreaming?: boolean; // Flag to indicate if message is still being streamed
 }
 
 export default function Home() {
@@ -21,14 +22,15 @@ export default function Home() {
   ]);
   const [userInput, setUserInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [streamingMessageIndex, setStreamingMessageIndex] = useState<number | null>(null);
   const chatWindowRef = useRef<HTMLDivElement>(null);
 
-  // Auto-scroll to bottom when messages change
+  // Auto-scroll to bottom when messages change or during streaming
   useEffect(() => {
     if (chatWindowRef.current) {
       chatWindowRef.current.scrollTop = chatWindowRef.current.scrollHeight;
     }
-  }, [messages, isLoading]);
+  }, [messages, isLoading, streamingMessageIndex]);
 
   const handleSendMessage = async () => {
     if (!userInput.trim() || isLoading) return;
@@ -40,8 +42,18 @@ export default function Home() {
 
     // Add user message and clear input
     setMessages(prev => [...prev, newUserMessage]);
+    const currentInput = userInput;
     setUserInput('');
     setIsLoading(true);
+
+    // Add empty bot message for streaming
+    const botMessageIndex = messages.length + 1;
+    setMessages(prev => [...prev, { 
+      role: 'bot', 
+      content: '', 
+      isStreaming: true 
+    }]);
+    setStreamingMessageIndex(botMessageIndex);
 
     try {
       // Get conversation history based on contextWindow setting and mode
@@ -63,14 +75,14 @@ export default function Home() {
         content: msg.content
       }));
       
-      // Make the API request with the conversation history
+      // Make the API request with streaming enabled
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ 
-          message: userInput,
+          message: currentInput,
           settings: settings,
           history: apiMessages
         }),
@@ -80,23 +92,73 @@ export default function Home() {
         throw new Error('Failed to get response');
       }
 
-      const data = await response.json();
-      
-      const botMessage: Message = {
-        role: 'bot',
-        content: data.response || 'Sorry, I couldn&apos;t process your request.'
-      };
+      // Handle streaming response
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
+      let accumulatedContent = '';
 
-      setMessages(prev => [...prev, botMessage]);
+      if (reader) {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          const chunk = decoder.decode(value, { stream: true });
+          const lines = chunk.split('\n');
+
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              const data = line.slice(6);
+              
+              if (data === '[DONE]') {
+                break;
+              }
+
+              try {
+                const parsed = JSON.parse(data);
+                const content = parsed.content;
+                
+                if (content) {
+                  accumulatedContent += content;
+                  
+                  // Update the streaming message in real-time
+                  setMessages(prev => prev.map((msg, index) => 
+                    index === botMessageIndex 
+                      ? { ...msg, content: accumulatedContent, isStreaming: true }
+                      : msg
+                  ));
+                }
+              } catch {
+                // Skip invalid JSON lines
+                continue;
+              }
+            }
+          }
+        }
+      }
+
+      // Mark streaming as complete
+      setMessages(prev => prev.map((msg, index) => 
+        index === botMessageIndex 
+          ? { ...msg, content: accumulatedContent || 'Sorry, I couldn\'t process your request.', isStreaming: false }
+          : msg
+      ));
+
     } catch (error) {
       console.error('Error:', error);
-      const errorMessage: Message = {
-        role: 'bot',
-        content: 'Sorry, I encountered an error while processing your request. Please try again.'
-      };
-      setMessages(prev => [...prev, errorMessage]);
+      
+      // Replace streaming message with error message
+      setMessages(prev => prev.map((msg, index) => 
+        index === botMessageIndex 
+          ? { 
+              ...msg, 
+              content: 'Sorry, I encountered an error while processing your request. Please try again.',
+              isStreaming: false 
+            }
+          : msg
+      ));
     } finally {
       setIsLoading(false);
+      setStreamingMessageIndex(null);
     }
   };
 
@@ -123,30 +185,21 @@ export default function Home() {
             className={message.role === 'user' ? 'prose prose-on-dark' : 'prose'}
             dangerouslySetInnerHTML={{ __html: htmlContent }} 
           />
+          {/* Show typing indicator for streaming messages */}
+          {message.isStreaming && (
+            <div className="flex items-center gap-2 mt-2 pt-2 border-t border-gray-200 dark:border-gray-600">
+              <div className="flex gap-1">
+                <div className="w-2 h-2 bg-blue-500 dark:bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                <div className="w-2 h-2 bg-blue-500 dark:bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                <div className="w-2 h-2 bg-blue-500 dark:bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+              </div>
+              <span className="text-xs text-gray-500 dark:text-gray-400 italic">generating...</span>
+            </div>
+          )}
         </div>
       </div>
     );
   };
-
-  const LoadingIndicator = () => (
-    <div className="flex justify-start mb-6">
-      <div className="bg-white dark:bg-gray-700 p-4 rounded-2xl rounded-bl-sm border-l-4 border-blue-500 dark:border-purple-500 flex items-center gap-3 shadow-lg">
-        <svg className="w-5 h-5 animate-spin text-blue-500 dark:text-purple-400" viewBox="0 0 24 24">
-          <circle 
-            cx="12" 
-            cy="12" 
-            r="10" 
-            stroke="currentColor" 
-            strokeWidth="4" 
-            fill="none" 
-            strokeDasharray="32" 
-            strokeLinecap="round"
-          />
-        </svg>
-        <span className="text-gray-600 dark:text-gray-300 italic text-sm">Thinking...</span>
-      </div>
-    </div>
-  );
 
   return (
     <main className="w-full max-w-4xl h-[90vh] bg-white/95 dark:bg-gray-800/95 backdrop-blur-xl rounded-3xl shadow-2xl border border-white/20 dark:border-gray-600/20 flex flex-col overflow-hidden transition-all duration-300 hover:shadow-3xl">
@@ -174,7 +227,6 @@ export default function Home() {
       >
         <div className="space-y-4">
           {messages.map((message, index) => renderMessage(message, index))}
-          {isLoading && <LoadingIndicator />}
         </div>
       </div>
       

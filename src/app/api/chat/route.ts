@@ -69,7 +69,7 @@ export async function POST(request: NextRequest) {
       contextMessages = history.slice(-contextWindow);
     }
 
-    // Make request to OpenRouter API (or custom endpoint)
+    // Make request to OpenRouter API (or custom endpoint) with streaming
     const response = await fetch(proxyUrl, {
       method: 'POST',
       headers: {
@@ -101,6 +101,7 @@ export async function POST(request: NextRequest) {
         ...(maxTokens !== undefined ? 
             maxTokens === 0 ? {} : { max_tokens: maxTokens } 
             : {}),
+        stream: true, // Enable streaming
       }),
     });
 
@@ -114,12 +115,67 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const data = await response.json();
-    
-    // Extract the AI's response
-    const aiResponse = data.choices?.[0]?.message?.content || 'Sorry, I couldn\'t generate a response.';
+    // Create a readable stream to forward the response
+    const encoder = new TextEncoder();
+    const decoder = new TextDecoder();
 
-    return NextResponse.json({ response: aiResponse });
+    const stream = new ReadableStream({
+      async start(controller) {
+        const reader = response.body?.getReader();
+        if (!reader) {
+          controller.close();
+          return;
+        }
+
+        try {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            // Decode the chunk
+            const chunk = decoder.decode(value, { stream: true });
+            const lines = chunk.split('\n');
+
+            for (const line of lines) {
+              if (line.startsWith('data: ')) {
+                const data = line.slice(6);
+                
+                if (data === '[DONE]') {
+                  controller.close();
+                  return;
+                }
+
+                try {
+                  const parsed = JSON.parse(data);
+                  const content = parsed.choices?.[0]?.delta?.content;
+                  
+                  if (content) {
+                    // Forward the content chunk to the client
+                    controller.enqueue(encoder.encode(`data: ${JSON.stringify({ content })}\n\n`));
+                  }
+                } catch {
+                  // Skip invalid JSON lines
+                  continue;
+                }
+              }
+            }
+          }
+        } catch (error) {
+          console.error('Stream processing error:', error);
+          controller.error(error);
+        } finally {
+          reader.releaseLock();
+        }
+      },
+    });
+
+    return new Response(stream, {
+      headers: {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive',
+      },
+    });
 
   } catch (error) {
     console.error('Error in chat API:', error);
