@@ -306,6 +306,28 @@ export default function SettingsModal() {
             </p>
           </div>
           
+          {/* Thinking Support */}
+          <div className="mt-4">
+            <label className="flex items-center cursor-pointer">
+              <input
+                type="checkbox"
+                name="supportsThinking"
+                checked={!!formValues.supportsThinking}
+                onChange={(e) => setFormValues({
+                  ...formValues,
+                  supportsThinking: e.target.checked
+                })}
+                className="w-4 h-4 text-blue-600 dark:text-purple-600 border-gray-300 dark:border-gray-600 rounded focus:ring-blue-500 dark:focus:ring-purple-500"
+              />
+              <span className="ml-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+                Model supports thinking mode
+              </span>
+            </label>
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400 ml-6">
+              Enable this if your model supports &quot;thinking&quot; (like Claude&apos;s &quot;Assistant thinking...&quot; feature). This will hide the thinking process and only show the final response.
+            </p>
+          </div>
+          
           {/* Generation Settings Section */}
           <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 border-b border-gray-200 dark:border-gray-700 pb-2 mt-8">
             Generation Settings

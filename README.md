@@ -127,6 +127,7 @@ src/
 - **Modern Design:** Clean message bubbles with gradient styling
 - **Auto-scroll:** Automatic scrolling to newest messages
 - **Streaming Responses:** Real-time text generation with visual typing indicators
+- **Thinking Mode:** Support for models with "thinking" capabilities (like Claude)
 - **Keyboard Shortcuts:** Enter to send, Shift+Enter for line breaks
 - **Responsive Layout:** Optimized for all screen sizes
 
@@ -140,6 +141,7 @@ src/
 ### AI Integration
 - **Universal Compatibility:** Works with any OpenAI-compatible API
 - **Model Flexibility:** Support for any AI model with proper endpoint
+- **Thinking Detection:** Smart handling for models with thinking capabilities
 - **Context Management:** Intelligent conversation history handling
 - **Error Handling:** Graceful error handling with user feedback
 - **Token Optimization:** Smart token counting and management
@@ -157,6 +159,7 @@ Configure the AI's personality and behavior through the settings panel:
 - **System Prompt:** Define the AI's role, personality, and response style
 - **Temperature:** Control creativity vs. consistency in responses
 - **Context Management:** Optimize for your conversation style
+- **Thinking Mode:** Enable for models like Claude that support hidden thinking processes
 
 ### API Configuration
 The chatbot supports multiple AI providers:

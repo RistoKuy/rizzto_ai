@@ -150,8 +150,18 @@ export async function POST(request: NextRequest) {
                   const content = parsed.choices?.[0]?.delta?.content;
                   
                   if (content) {
+                    // Check for thinking indicators in the content
+                    const isThinking = settings.supportsThinking && (
+                      content.includes("<thinking>") || 
+                      content.includes("Assistant thinking") ||
+                      content.includes("I need to think about this")
+                    );
+                    
                     // Forward the content chunk to the client
-                    controller.enqueue(encoder.encode(`data: ${JSON.stringify({ content })}\n\n`));
+                    controller.enqueue(encoder.encode(`data: ${JSON.stringify({ 
+                      content, 
+                      isThinking 
+                    })}\n\n`));
                   }
                 } catch {
                   // Skip invalid JSON lines

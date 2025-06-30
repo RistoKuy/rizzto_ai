@@ -15,6 +15,9 @@ export interface ChatSettings {
   // Generation settings
   temperature?: number;    // Controls creativity vs. determinism (0.0-2.0)
   maxTokens?: number;      // Maximum response length (0 means unlimited)
+  
+  // Model capabilities
+  supportsThinking?: boolean; // Whether the model supports "thinking" mode
 }
 
 export function useSettings() {

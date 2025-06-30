@@ -30,6 +30,9 @@ export const SettingsContext = createContext<SettingsContextType>({
     // Generation settings
     temperature: undefined,
     maxTokens: undefined,
+    
+    // Model capabilities
+    supportsThinking: false,
   },
   updateSettings: () => {},
   resetSettings: () => {},
@@ -52,6 +55,9 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     // Generation settings
     temperature: undefined,
     maxTokens: undefined,
+    
+    // Model capabilities
+    supportsThinking: false,
   });
   const [isOpen, setIsOpen] = useState(false);
 
@@ -101,6 +107,9 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       // Generation settings
       temperature: undefined,
       maxTokens: undefined,
+      
+      // Model capabilities
+      supportsThinking: false,
     };
     setSettings(defaultValues);
     localStorage.setItem('chatSettings', JSON.stringify(defaultValues));

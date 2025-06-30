@@ -10,6 +10,7 @@ interface Message {
   role: 'user' | 'bot';
   content: string;
   isStreaming?: boolean; // Flag to indicate if message is still being streamed
+  isThinking?: boolean; // Flag to indicate if model is in "thinking" mode
 }
 
 export default function Home() {
@@ -51,7 +52,8 @@ export default function Home() {
     setMessages(prev => [...prev, { 
       role: 'bot', 
       content: '', 
-      isStreaming: true 
+      isStreaming: true,
+      isThinking: settings.supportsThinking || false
     }]);
     setStreamingMessageIndex(botMessageIndex);
 
@@ -116,16 +118,29 @@ export default function Home() {
               try {
                 const parsed = JSON.parse(data);
                 const content = parsed.content;
+                const isThinking = parsed.isThinking;
                 
                 if (content) {
-                  accumulatedContent += content;
-                  
-                  // Update the streaming message in real-time
-                  setMessages(prev => prev.map((msg, index) => 
-                    index === botMessageIndex 
-                      ? { ...msg, content: accumulatedContent, isStreaming: true }
-                      : msg
-                  ));
+                  // For thinking mode, collect content in memory but don't show thinking
+                  if (isThinking) {
+                    accumulatedContent += content;
+                    
+                    // Only show a thinking indicator, not the actual content
+                    setMessages(prev => prev.map((msg, index) => 
+                      index === botMessageIndex 
+                        ? { ...msg, content: "", isStreaming: true, isThinking: true }
+                        : msg
+                    ));
+                  } else {
+                    accumulatedContent += content;
+                    
+                    // Update the streaming message in real-time for normal streaming
+                    setMessages(prev => prev.map((msg, index) => 
+                      index === botMessageIndex 
+                        ? { ...msg, content: accumulatedContent, isStreaming: true, isThinking: false }
+                        : msg
+                    ));
+                  }
                 }
               } catch {
                 // Skip invalid JSON lines
@@ -139,7 +154,12 @@ export default function Home() {
       // Mark streaming as complete
       setMessages(prev => prev.map((msg, index) => 
         index === botMessageIndex 
-          ? { ...msg, content: accumulatedContent || 'Sorry, I couldn\'t process your request.', isStreaming: false }
+          ? { 
+              ...msg, 
+              content: accumulatedContent || 'Sorry, I couldn\'t process your request.', 
+              isStreaming: false,
+              isThinking: false
+            }
           : msg
       ));
 
@@ -152,7 +172,8 @@ export default function Home() {
           ? { 
               ...msg, 
               content: 'Sorry, I encountered an error while processing your request. Please try again.',
-              isStreaming: false 
+              isStreaming: false,
+              isThinking: false
             }
           : msg
       ));
@@ -185,7 +206,7 @@ export default function Home() {
             className={message.role === 'user' ? 'prose prose-on-dark' : 'prose'}
             dangerouslySetInnerHTML={{ __html: htmlContent }} 
           />
-          {/* Show typing indicator for streaming messages */}
+          {/* Show indicator for streaming messages */}
           {message.isStreaming && (
             <div className="flex items-center gap-2 mt-2 pt-2 border-t border-gray-200 dark:border-gray-600">
               <div className="flex gap-1">
@@ -193,7 +214,9 @@ export default function Home() {
                 <div className="w-2 h-2 bg-blue-500 dark:bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
                 <div className="w-2 h-2 bg-blue-500 dark:bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
               </div>
-              <span className="text-xs text-gray-500 dark:text-gray-400 italic">generating...</span>
+              <span className="text-xs text-gray-500 dark:text-gray-400 italic">
+                {message.isThinking ? "thinking..." : "generating..."}
+              </span>
             </div>
           )}
         </div>

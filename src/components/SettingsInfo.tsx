@@ -39,6 +39,7 @@ export default function SettingsInfo() {
       {/* Essential Settings */}
       <span className="font-medium">Model: {modelName || "Not set"}</span>
       {usingClientKey && <span className="text-green-500">Using custom API key</span>}
+      {settings.supportsThinking && <span className="text-purple-500">Thinking enabled</span>}
       
       {/* Generation Settings */}
       <span>
