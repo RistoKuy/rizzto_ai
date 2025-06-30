@@ -24,6 +24,7 @@ export default function Home() {
   const [userInput, setUserInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [streamingMessageIndex, setStreamingMessageIndex] = useState<number | null>(null);
+  const [abortController, setAbortController] = useState<AbortController | null>(null);
   const chatWindowRef = useRef<HTMLDivElement>(null);
 
   // Auto-scroll to bottom when messages change or during streaming
@@ -33,13 +34,44 @@ export default function Home() {
     }
   }, [messages, isLoading, streamingMessageIndex]);
 
+  const stopGeneration = () => {
+    if (abortController) {
+      abortController.abort();
+      setAbortController(null);
+      setIsLoading(false);
+      setStreamingMessageIndex(null);
+      
+      // Update the message to indicate generation was stopped
+      if (streamingMessageIndex !== null) {
+        setMessages(prev => prev.map((msg, index) => 
+          index === streamingMessageIndex
+            ? { 
+                ...msg, 
+                content: msg.content + "\n\n[Generation stopped by user]", 
+                isStreaming: false,
+                isThinking: false
+              }
+            : msg
+        ));
+      }
+    }
+  };
+
   const handleSendMessage = async () => {
     if (!userInput.trim() || isLoading) return;
+
+    // If there's an ongoing generation, stop it first
+    if (abortController) {
+      stopGeneration();
+      return;
+    }
 
     const newUserMessage: Message = {
       role: 'user',
       content: userInput
     };
+
+    // User input is already captured in currentInput
 
     // Add user message and clear input
     setMessages(prev => [...prev, newUserMessage]);
@@ -77,6 +109,10 @@ export default function Home() {
         content: msg.content
       }));
       
+      // Create a new AbortController for this request
+      const controller = new AbortController();
+      setAbortController(controller);
+      
       // Make the API request with streaming enabled
       const response = await fetch('/api/chat', {
         method: 'POST',
@@ -88,6 +124,7 @@ export default function Home() {
           settings: settings,
           history: apiMessages
         }),
+        signal: controller.signal
       });
 
       if (!response.ok) {
@@ -180,9 +217,202 @@ export default function Home() {
     } finally {
       setIsLoading(false);
       setStreamingMessageIndex(null);
+      setAbortController(null);
     }
   };
 
+  const handleRetry = (index: number) => {
+    // Find the last user message before this bot message
+    let userMessageContent = '';
+    for (let i = index - 1; i >= 0; i--) {
+      if (messages[i].role === 'user') {
+        userMessageContent = messages[i].content;
+        break;
+      }
+    }
+    
+    if (!userMessageContent || isLoading) return;
+    
+    // Important: Create a clean copy of messages without the one we're regenerating
+    const updatedMessages = messages.filter((_, i) => i !== index);
+    
+    // Use the stored user message for regeneration
+    const regenerateInput = userMessageContent;
+    
+    // Trigger regeneration
+    setIsLoading(true);
+    
+    // Calculate the correct index for the new streaming message
+    const botMessageIndex = updatedMessages.length;
+    
+    // Update messages with both the filtered array and the new bot message in one update
+    setMessages([
+      ...updatedMessages,
+      { 
+        role: 'bot', 
+        content: '', 
+        isStreaming: true,
+        isThinking: settings.supportsThinking || false
+      }
+    ]);
+    
+    setStreamingMessageIndex(botMessageIndex);
+    
+    // Start the API request (reusing most of handleSendMessage logic)
+    (async () => {
+      try {
+        // Use the updated messages array for conversation history
+        let conversationHistory = [...updatedMessages];
+        
+        if (settings.contextMode === 'tokens') {
+          const maxMessages = Math.min(conversationHistory.length, 100);
+          conversationHistory = conversationHistory.slice(-maxMessages);
+        } else {
+          conversationHistory = conversationHistory.slice(-(settings.contextWindow || 10));
+        }
+        
+        // Map our internal message format to the API format
+        const apiMessages = conversationHistory.map(msg => ({
+          role: msg.role === 'user' ? 'user' : 'assistant',
+          content: msg.content
+        }));
+        
+        // Create a new AbortController for this request
+        const controller = new AbortController();
+        setAbortController(controller);
+        
+        // Make the API request with streaming enabled
+        const response = await fetch('/api/chat', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ 
+            message: regenerateInput,
+            settings: settings,
+            history: apiMessages
+          }),
+          signal: controller.signal
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to get response');
+        }
+
+        // Handle streaming response
+        const reader = response.body?.getReader();
+        const decoder = new TextDecoder();
+        let accumulatedContent = '';
+
+        if (reader) {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            const chunk = decoder.decode(value, { stream: true });
+            const lines = chunk.split('\n');
+
+            for (const line of lines) {
+              if (line.startsWith('data: ')) {
+                const data = line.slice(6);
+                
+                if (data === '[DONE]') {
+                  break;
+                }
+
+                try {
+                  const parsed = JSON.parse(data);
+                  const content = parsed.content;
+                  const isThinking = parsed.isThinking;
+                  
+                  if (content) {
+                    // For thinking mode, collect content in memory but don't show thinking
+                    if (isThinking) {
+                      accumulatedContent += content;
+                      
+                      // Only show a thinking indicator, not the actual content
+                      setMessages(prev => {
+                        // Make sure botMessageIndex is within bounds
+                        if (botMessageIndex >= 0 && botMessageIndex < prev.length) {
+                          return prev.map((msg, idx) => 
+                            idx === botMessageIndex 
+                              ? { ...msg, content: "", isStreaming: true, isThinking: true }
+                              : msg
+                          );
+                        }
+                        return prev;
+                      });
+                    } else {
+                      accumulatedContent += content;
+                      
+                      // Update the streaming message in real-time for normal streaming
+                      setMessages(prev => {
+                        // Make sure botMessageIndex is within bounds
+                        if (botMessageIndex >= 0 && botMessageIndex < prev.length) {
+                          return prev.map((msg, idx) => 
+                            idx === botMessageIndex 
+                              ? { ...msg, content: accumulatedContent, isStreaming: true, isThinking: false }
+                              : msg
+                          );
+                        }
+                        return prev;
+                      });
+                    }
+                  }
+                } catch {
+                  // Skip invalid JSON lines
+                  continue;
+                }
+              }
+            }
+          }
+        }
+
+        // Mark streaming as complete
+        setMessages(prev => {
+          // Make sure botMessageIndex is within bounds
+          if (botMessageIndex >= 0 && botMessageIndex < prev.length) {
+            return prev.map((msg, idx) => 
+              idx === botMessageIndex 
+                ? { 
+                    ...msg, 
+                    content: accumulatedContent || 'Sorry, I couldn\'t process your request.', 
+                    isStreaming: false,
+                    isThinking: false
+                  }
+                : msg
+            );
+          }
+          return prev;
+        });
+      } catch (error) {
+        console.error('Error:', error);
+        
+        // Replace streaming message with error message
+        setMessages(prev => {
+          // Make sure botMessageIndex is within bounds
+          if (botMessageIndex >= 0 && botMessageIndex < prev.length) {
+            return prev.map((msg, idx) => 
+              idx === botMessageIndex 
+                ? { 
+                    ...msg, 
+                    content: 'Sorry, I encountered an error while processing your request. Please try again.',
+                    isStreaming: false,
+                    isThinking: false
+                  }
+                : msg
+            );
+          }
+          return prev;
+        });
+      } finally {
+        setIsLoading(false);
+        setStreamingMessageIndex(null);
+        setAbortController(null);
+      }
+    })();
+  };
+  
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
@@ -192,18 +422,38 @@ export default function Home() {
 
   const renderMessage = (message: Message, index: number) => {
     const htmlContent = marked(message.content);
+    const isBot = message.role === 'bot';
+    // Don't show retry button for the first welcome message
+    const isFirstMessage = index === 0;
+    // Show retry button only for bot messages that aren't the first message and aren't streaming
+    const showRetry = isBot && !message.isStreaming && !isFirstMessage;
     
     return (
-      <div key={index} className={`mb-6 animate-fade-in-up ${message.role === 'user' ? 'flex justify-end' : 'flex justify-start'}`}>
+      <div key={index} className={`mb-6 animate-fade-in-up ${isBot ? 'flex justify-start' : 'flex justify-end'}`}>
         <div 
-          className={`max-w-[80%] sm:max-w-[70%] p-4 rounded-2xl shadow-lg break-words transition-all duration-200 hover:shadow-xl ${
-            message.role === 'user' 
-              ? 'bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-br-sm' 
-              : 'bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-100 rounded-bl-sm border-l-4 border-blue-500 dark:border-purple-500'
+          className={`relative max-w-[80%] sm:max-w-[70%] p-4 rounded-2xl shadow-lg break-words transition-all duration-200 hover:shadow-xl ${
+            isBot
+              ? 'bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-100 rounded-bl-sm border-l-4 border-blue-500 dark:border-purple-500'
+              : 'bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-br-sm' 
           }`}
         >
+          {/* Show retry button on the top right for bot messages that aren't the first message */}
+          {showRetry && (
+            <button 
+              onClick={() => handleRetry(index)}
+              disabled={isLoading}
+              className="absolute -right-2 -top-2 p-1.5 bg-white dark:bg-gray-700 text-gray-500 hover:text-blue-500 dark:hover:text-purple-400 rounded-full hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors shadow-md border border-gray-200 dark:border-gray-600"
+              title="Regenerate response"
+              aria-label="Regenerate response"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38" />
+              </svg>
+            </button>
+          )}
+          
           <div 
-            className={message.role === 'user' ? 'prose prose-on-dark' : 'prose'}
+            className={isBot ? 'prose' : 'prose prose-on-dark'}
             dangerouslySetInnerHTML={{ __html: htmlContent }} 
           />
           {/* Show indicator for streaming messages */}
@@ -272,14 +522,20 @@ export default function Home() {
             </div>
           </div>
           <button
-            className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white border-none px-6 py-4 rounded-2xl cursor-pointer text-base font-semibold transition-all duration-300 shadow-lg hover:shadow-xl active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed disabled:transform-none flex items-center gap-2 min-w-[100px] justify-center"
-            onClick={handleSendMessage}
-            disabled={isLoading || !userInput.trim()}
+            className={`${isLoading 
+              ? 'bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700' 
+              : 'bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700'
+            } text-white border-none px-6 py-4 rounded-2xl cursor-pointer text-base font-semibold transition-all duration-300 shadow-lg hover:shadow-xl active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed disabled:transform-none flex items-center gap-2 min-w-[100px] justify-center`}
+            onClick={isLoading ? stopGeneration : handleSendMessage}
+            disabled={!isLoading && !userInput.trim()}
           >
             {isLoading ? (
-              <svg className="w-5 h-5 animate-spin" viewBox="0 0 24 24">
-                <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" strokeDasharray="32" strokeLinecap="round"/>
-              </svg>
+              <>
+                <span>Stop</span>
+                <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="6" y="6" width="12" height="12" rx="2" ry="2" />
+                </svg>
+              </>
             ) : (
               <>
                 <span>Send</span>
@@ -294,7 +550,7 @@ export default function Home() {
         {/* Footer info */}
         <div className="mt-3 text-center">
           <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
-            Press Enter to send • AI responses may take a moment
+            Press Enter to send • Click Stop during generation • Use <span aria-label="retry" title="Retry">↻</span> to regenerate responses
           </p>
           <SettingsInfo />
         </div>

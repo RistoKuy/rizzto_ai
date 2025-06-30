@@ -126,6 +126,12 @@ export async function POST(request: NextRequest) {
           controller.close();
           return;
         }
+        
+        // Handle client disconnection
+        request.signal.addEventListener('abort', () => {
+          reader?.cancel();
+          controller.close();
+        });
 
         try {
           while (true) {

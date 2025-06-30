@@ -17,6 +17,7 @@ A modern, fully customizable AI chatbot built with Next.js, TypeScript, and conf
 - **Dark Theme Optimized:** Consistent styling across light and dark modes
 - **Responsive Design:** Fully optimized for desktop and mobile devices
 - **Real-time Indicators:** Streaming text animation and typing indicators
+- **Interactive Controls:** Stop generation button and message regeneration
 
 ### ⚙️ **Advanced Configuration**
 - **Required Settings:** API endpoint URL, model selection, and optional API key
@@ -128,6 +129,8 @@ src/
 - **Auto-scroll:** Automatic scrolling to newest messages
 - **Streaming Responses:** Real-time text generation with visual typing indicators
 - **Thinking Mode:** Support for models with "thinking" capabilities (like Claude)
+- **Generation Control:** Stop button to cancel ongoing generations
+- **Message Regeneration:** One-click retry button to regenerate any response
 - **Keyboard Shortcuts:** Enter to send, Shift+Enter for line breaks
 - **Responsive Layout:** Optimized for all screen sizes
 
